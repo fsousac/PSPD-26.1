@@ -5,55 +5,71 @@
 int main(int argc, char* argv[]) {
     int rank, size;
     int N;
+    int valor = 0;
+    int proximo, anterior;
+    const int TAG_CONTAGEM = 0;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (rank == 0) {
-        printf("Informe o valor final N (contagem de 0 ate N): ");
-        fflush(stdout);
-        if (scanf("%d", &N) != 1) {
-            fprintf(stderr, "Erro: nao foi possivel ler N.\n");
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-        // N = atoi(argv[1])
-
-        if (N < 0) {
-            fprintf(stderr, "Erro: N deve ser >= 0.\n");
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-
-        if (size > N + 1) {
-            fprintf(stderr, "Erro: numero de processos de -np (%d) deve ser <= N + 1 (%d).\n", size, N + 1);
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-    }
-
-    MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-    MPI_Status status;
-
-    for (int i = 0; i <= N; i++) {
-        int owner = i % size;
-
-        if (rank == owner && rank != 0) {
-            MPI_Send(&i, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-        }
-
+    if (argc != 2) {
         if (rank == 0) {
-            int value = i;
-            if (owner != 0) {
-                MPI_Recv(&value, 1, MPI_INT, owner, 0, MPI_COMM_WORLD, &status);
-            }
-            printf("%d ", value);
-            fflush(stdout);
+            printf("Uso: mpirun -np <num_processos> ./programa <N>\n");
+        }
+        MPI_Finalize();
+        return 1;
+    }
+
+    N = atoi(argv[1]);
+
+    if (size < 2) {
+        if (rank == 0) {
+            printf("Execute com pelo menos 2 processos.\n");
+        }
+        MPI_Finalize();
+        return 1;
+    }
+
+    if (N < 0) {
+        if (rank == 0) {
+            printf("Informe um N maior ou igual a 0.\n");
+        }
+        MPI_Finalize();
+        return 1;
+    }
+
+    if (N < size) {
+        if (rank == 0) {
+            printf("Aviso: o enunciado supoe quantidade de processos menor que N.\n");
         }
     }
 
+    proximo = (rank + 1) % size;
+    anterior = (rank - 1 + size) % size;
+
     if (rank == 0) {
-        printf("\n");
+        printf("Processo %d imprimiu: %d\n", rank, valor);
         fflush(stdout);
+        valor = 1;
+        MPI_Send(&valor, 1, MPI_INT, proximo, TAG_CONTAGEM, MPI_COMM_WORLD);
+    }
+
+    while (1) {
+        MPI_Recv(&valor, 1, MPI_INT, anterior, TAG_CONTAGEM, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        if (valor > N) {
+            if (proximo != rank) {
+                MPI_Send(&valor, 1, MPI_INT, proximo, TAG_CONTAGEM, MPI_COMM_WORLD);
+            }
+            break;
+        }
+
+        printf("Processo %d imprimiu: %d\n", rank, valor);
+        fflush(stdout);
+
+        valor++;
+        MPI_Send(&valor, 1, MPI_INT, proximo, TAG_CONTAGEM, MPI_COMM_WORLD);
     }
 
     MPI_Finalize();
