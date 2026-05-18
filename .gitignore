@@ -53,7 +53,9 @@ dkms.conf
 *
 !*.*
 !*/
+!Makefile
 
 # debug information files
 *.dwo
 .vscode/
+.codex
